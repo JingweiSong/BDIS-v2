@@ -11,6 +11,7 @@ SSE instructions from built-in X86 functions for GNU GCC were used.
 
 
 ```
+cd OF_dis_bayesian
 mkdir build
 cd build
 cmake ../
