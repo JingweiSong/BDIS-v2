@@ -22,7 +22,7 @@ The code depends on Eigen3 and OpenCV.
       
 
 ## Usage ##
-1. ./run_bash_*.sh generates the disparity.      
+1. ./run_bash_*.sh generates the disparity.   (Use 'chmod +x run_bash_*.sh' to assign permission )   
 2. Run Main_batch.m (data set 6, 20 and 21) or Main_synthetic.m (data set 30, 31, 32 and 33) in the matlab folder for visualization.      
 3. [Optional]. To test the coverage rate of the variance, please modify the last parameter in bash_*.sh from 0 to 1.       
       
