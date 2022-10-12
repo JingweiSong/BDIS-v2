@@ -1,6 +1,6 @@
 # BDIS: Bayesian Dense Inverse Searching Methodfor Real-Time Stereo Surgical Image Matching #
 
-This is the CPU level real-time stereo software for minimally invasive surgery.
+This is the CPU level real-time stereo software for minimally invasive surgery. The paper has been accepted by IEEE Transaction on Robotics (https://arxiv.org/abs/2205.03133).  
 
  
   
