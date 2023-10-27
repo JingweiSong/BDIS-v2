@@ -35,7 +35,7 @@ while ( frameindex <= parameter_Settings.end_frame  )
     
    
     
-    result_Bayesian = importdata([parameter_Settings.dataset_path num2str(Dataindex) '/images_rectified/bayesian_output' int2str(frameindex)]);
+    result_Bayesian = double(imread([parameter_Settings.dataset_path num2str(Dataindex) '/images_rectified/bayesian_output' int2str(frameindex) '.png']))/10;
     
     Data.RGB_image = imread([parameter_Settings.dataset_path num2str(Dataindex) '/images_rectified/left/' int2str(frameindex) '.png']);
 

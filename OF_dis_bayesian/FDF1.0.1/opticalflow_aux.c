@@ -7,14 +7,14 @@
 #include <xmmintrin.h>
 typedef __v4sf v4sf;
 
-#define datanorm 0.1f*0.1f
-#define epsilon_color (0.001f*0.001f)
-#define epsilon_grad (0.001f*0.001f)
-#define epsilon_desc (0.001f*0.001f)
-#define epsilon_smooth (0.001f*0.001f)
+#define datanorm 0.1f*0.1f//0.01f // square of the normalization factor
+#define epsilon_color (0.001f*0.001f)//0.000001f
+#define epsilon_grad (0.001f*0.001f)//0.000001f
+#define epsilon_desc (0.001f*0.001f)//0.000001f
+#define epsilon_smooth (0.001f*0.001f)//0.000001f
 
-
-#if (SELECTCHANNEL==1 | SELECTCHANNEL==2)
+/* warp a color image according to a flow. src is the input image, wx and wy, the input flow. dst is the warped image and mask contains 0 or 1 if the pixels goes outside/inside image boundaries */
+#if (SELECTCHANNEL==1 | SELECTCHANNEL==2)  // use single band image_delete
 void image_warp(image_t *dst, image_t *mask, const image_t *src, const image_t *wx, const image_t *wy)
 #else
 void image_warp(color_image_t *dst, image_t *mask, const color_image_t *src, const image_t *wx, const image_t *wy)
@@ -60,8 +60,8 @@ void image_warp(color_image_t *dst, image_t *mask, const color_image_t *src, con
 }
 
 
-
-#if (SELECTCHANNEL==1 | SELECTCHANNEL==2)
+/* compute image first and second order spatio-temporal derivatives of a color image */
+#if (SELECTCHANNEL==1 | SELECTCHANNEL==2)  // use single band image_delete
 void get_derivatives(const image_t *im1, const image_t *im2, const convolution_t *deriv,
          image_t *dx, image_t *dy, image_t *dt, 
          image_t *dxx, image_t *dxy, image_t *dyy, image_t *dxt, image_t *dyt)
@@ -71,7 +71,7 @@ void get_derivatives(const color_image_t *im1, const color_image_t *im2, const c
 		     color_image_t *dxx, color_image_t *dxy, color_image_t *dyy, color_image_t *dxt, color_image_t *dyt)
 #endif
 {
-
+    // derivatives are computed on the mean of the first image and the warped second image
 #if (SELECTCHANNEL==1 | SELECTCHANNEL==2)
     image_t *tmp_im2 = image_new(im2->width,im2->height);    
     v4sf *tmp_im2p = (v4sf*) tmp_im2->c1, *dtp = (v4sf*) dt->c1, *im1p = (v4sf*) im1->c1, *im2p = (v4sf*) im2->c1;
@@ -82,7 +82,7 @@ void get_derivatives(const color_image_t *im1, const color_image_t *im2, const c
         *dtp = (*im2p)-(*im1p);
         dtp+=1; im1p+=1; im2p+=1; tmp_im2p+=1;
     }   
-
+    // compute all other derivatives
     image_convolve_hv(dx, tmp_im2, deriv, NULL);
     image_convolve_hv(dy, tmp_im2, NULL, deriv);
     image_convolve_hv(dxx, dx, deriv, NULL);
@@ -90,7 +90,7 @@ void get_derivatives(const color_image_t *im1, const color_image_t *im2, const c
     image_convolve_hv(dyy, dy, NULL, deriv);
     image_convolve_hv(dxt, dt, deriv, NULL);
     image_convolve_hv(dyt, dt, NULL, deriv);
-
+    // free memory
     image_delete(tmp_im2);
 #else
     color_image_t *tmp_im2 = color_image_new(im2->width,im2->height);    
@@ -102,7 +102,7 @@ void get_derivatives(const color_image_t *im1, const color_image_t *im2, const c
         *dtp = (*im2p)-(*im1p);
         dtp+=1; im1p+=1; im2p+=1; tmp_im2p+=1;
     }   
-
+    // compute all other derivatives
     color_image_convolve_hv(dx, tmp_im2, deriv, NULL);
     color_image_convolve_hv(dy, tmp_im2, NULL, deriv);
     color_image_convolve_hv(dxx, dx, deriv, NULL);
@@ -110,24 +110,26 @@ void get_derivatives(const color_image_t *im1, const color_image_t *im2, const c
     color_image_convolve_hv(dyy, dy, NULL, deriv);
     color_image_convolve_hv(dxt, dt, deriv, NULL);
     color_image_convolve_hv(dyt, dt, NULL, deriv);
-
+    // free memory
     color_image_delete(tmp_im2);
 #endif
 }
 
 
-
-
+/* compute the smoothness term */
+/* It is represented as two images, the first one for horizontal smoothness, the second for vertical
+   in dst_horiz, the pixel i,j represents the smoothness weight between pixel i,j and i,j+1
+   in dst_vert, the pixel i,j represents the smoothness weight between pixel i,j and i+1,j */
 void compute_smoothness(image_t *dst_horiz, image_t *dst_vert, const image_t *uu, const image_t *vv, const convolution_t *deriv_flow, const float quarter_alpha){
     const int width = uu->width, height = vv->height, stride = uu->stride;
     int j;
     image_t *ux = image_new(width,height), *vx = image_new(width,height), *uy = image_new(width,height), *vy = image_new(width,height), *smoothness = image_new(width,height);
-
+    // compute derivatives [-0.5 0 0.5]
     convolve_horiz(ux, uu, deriv_flow);
     convolve_horiz(vx, vv, deriv_flow);
     convolve_vert(uy, uu, deriv_flow);
     convolve_vert(vy, vv, deriv_flow);
-
+    // compute smoothness
     v4sf *uxp = (v4sf*) ux->c1, *vxp = (v4sf*) vx->c1, *uyp = (v4sf*) uy->c1, *vyp = (v4sf*) vy->c1, *sp = (v4sf*) smoothness->c1;
     const v4sf qa = {quarter_alpha,quarter_alpha,quarter_alpha,quarter_alpha};
     const v4sf epsmooth = {epsilon_smooth,epsilon_smooth,epsilon_smooth,epsilon_smooth};
@@ -136,11 +138,11 @@ void compute_smoothness(image_t *dst_horiz, image_t *dst_vert, const image_t *uu
         sp+=1;uxp+=1; uyp+=1; vxp+=1; vyp+=1;
     }
     image_delete(ux); image_delete(uy); image_delete(vx); image_delete(vy); 
-
+    // compute dst_horiz
     v4sf *dsthp = (v4sf*) dst_horiz->c1; sp = (v4sf*) smoothness->c1;
-    float *sp_shift = (float*) memalign(16, stride*sizeof(float));
+    float *sp_shift = (float*) memalign(16, stride*sizeof(float)); // aligned shifted copy of the current line
     for(j=0;j<height;j++){
-
+        // create an aligned copy
         float *spf = (float*) sp;
         memcpy(sp_shift, spf+1, sizeof(float)*(stride-1));
         v4sf *sps = (v4sf*) sp_shift;
@@ -152,7 +154,7 @@ void compute_smoothness(image_t *dst_horiz, image_t *dst_vert, const image_t *uu
         memset( &dst_horiz->c1[j*stride+width-1], 0, sizeof(float)*(stride-width+1));
     }
     free(sp_shift);
-
+    // compute dst_vert
     v4sf *dstvp = (v4sf*) dst_vert->c1, *sp_bottom = (v4sf*) (smoothness->c1+stride); sp = (v4sf*) smoothness->c1;
     for(j=0 ; j<(height-1)*stride/4 ; j++){
         *dstvp = (*sp) + (*sp_bottom);
@@ -166,13 +168,13 @@ void compute_smoothness(image_t *dst_horiz, image_t *dst_vert, const image_t *uu
 
 
 
-
+/* sub the laplacian (smoothness term) to the right-hand term */
 void sub_laplacian(image_t *dst, const image_t *src, const image_t *weight_horiz, const image_t *weight_vert){
     int j;
     const int offsetline = src->stride-src->width;
     float *src_ptr = src->c1, *dst_ptr = dst->c1, *weight_horiz_ptr = weight_horiz->c1;
-
-    for(j=src->height+1;--j;){
+    // horizontal filtering
+    for(j=src->height+1;--j;){ // faster than for(j=0;j<src->height;j++)
         int i;
         for(i=src->width;--i;){
 	        const float tmp = (*weight_horiz_ptr)*((*(src_ptr+1))-(*src_ptr));
@@ -196,7 +198,9 @@ void sub_laplacian(image_t *dst, const image_t *src, const image_t *weight_horiz
     }
 }
 
-
+/* compute the dataterm and the matching term
+   a11 a12 a22 represents the 2x2 diagonal matrix, b1 and b2 the right hand side
+   other (color) images are input */
 void compute_data_and_match(image_t *a11, image_t *a12, image_t *a22, image_t *b1, image_t *b2, image_t *mask, image_t *wx, image_t *wy, image_t *du, image_t *dv, image_t *uu, image_t *vv, color_image_t *Ix, color_image_t *Iy, color_image_t *Iz, color_image_t *Ixx, color_image_t *Ixy, color_image_t *Iyy, color_image_t *Ixz, color_image_t *Iyz, image_t *desc_weight, image_t *desc_flow_x, image_t *desc_flow_y, const float half_delta_over3, const float half_beta, const float half_gamma_over3){
  
     const v4sf dnorm = {datanorm, datanorm, datanorm, datanorm};
@@ -226,7 +230,7 @@ void compute_data_and_match(image_t *a11, image_t *a12, image_t *a22, image_t *b
     int i;
     for(i = 0 ; i<uu->height*uu->stride/4 ; i++){
         v4sf tmp, tmp2, tmp3, tmp4, tmp5, tmp6, n1, n2, n3, n4, n5, n6;
-
+        // dpsi color
         if(half_delta_over3){
             tmp  = *iz1p + (*ix1p)*(*dup) + (*iy1p)*(*dvp);
             n1 = (*ix1p) * (*ix1p) + (*iy1p) * (*iy1p) + dnorm;
@@ -252,7 +256,7 @@ void compute_data_and_match(image_t *a11, image_t *a12, image_t *a22, image_t *b
             *b1p -=  tmp3 * (*iz3p) * (*ix3p);
             *b2p -=  tmp3 * (*iz3p) * (*iy3p);
         }
-
+        // dpsi gradient
         n1 = (*ixx1p) * (*ixx1p) + (*ixy1p) * (*ixy1p) + dnorm;
         n2 = (*iyy1p) * (*iyy1p) + (*ixy1p) * (*ixy1p) + dnorm;
         tmp  = *ixz1p + (*ixx1p) * (*dup) + (*ixy1p) * (*dvp);
@@ -282,7 +286,7 @@ void compute_data_and_match(image_t *a11, image_t *a12, image_t *a22, image_t *b
         *a22p += tmp6*(*iyy3p)*(*iyy3p) + tmp5*(*ixy3p)*(*ixy3p);
         *b1p -=  tmp5*(*ixx3p)*(*ixz3p) + tmp6*(*ixy3p)*(*iyz3p);
         *b2p -=  tmp6*(*iyy3p)*(*iyz3p) + tmp5*(*ixy3p)*(*ixz3p);  
-        if(half_beta){
+        if(half_beta){ // dpsi_match
             tmp  = *uup - (*descflowxp);
             tmp2 = *vvp - (*descflowyp);
             tmp = hbeta*(*descweightp)/__builtin_ia32_sqrtps(tmp*tmp+tmp2*tmp2+epsdesc);
@@ -299,8 +303,10 @@ void compute_data_and_match(image_t *a11, image_t *a12, image_t *a22, image_t *b
     }
 }
 
-
-#if (SELECTCHANNEL==1 | SELECTCHANNEL==2)
+/* compute the dataterm // REMOVED MATCHING TERM
+   a11 a12 a22 represents the 2x2 diagonal matrix, b1 and b2 the right hand side
+   other (color) images are input */
+#if (SELECTCHANNEL==1 | SELECTCHANNEL==2)  // use single band image_delete
 void compute_data(image_t *a11, image_t *a12, image_t *a22, image_t *b1, image_t *b2, image_t *mask, image_t *wx, image_t *wy, image_t *du, image_t *dv, image_t *uu, image_t *vv, image_t *Ix, image_t *Iy, image_t *Iz, image_t *Ixx, image_t *Ixy, image_t *Iyy, image_t *Ixz, image_t *Iyz, const float half_delta_over3, const float half_beta, const float half_gamma_over3)
 #else
 void compute_data(image_t *a11, image_t *a12, image_t *a22, image_t *b1, image_t *b2, image_t *mask, image_t *wx, image_t *wy, image_t *du, image_t *dv, image_t *uu, image_t *vv, color_image_t *Ix, color_image_t *Iy, color_image_t *Iz, color_image_t *Ixx, color_image_t *Ixy, color_image_t *Iyy, color_image_t *Ixz, color_image_t *Iyz, const float half_delta_over3, const float half_beta, const float half_gamma_over3)
@@ -311,8 +317,8 @@ void compute_data(image_t *a11, image_t *a12, image_t *a22, image_t *b1, image_t
     const v4sf epscolor = {epsilon_color, epsilon_color, epsilon_color, epsilon_color};
     const v4sf hgover3 = {half_gamma_over3, half_gamma_over3, half_gamma_over3, half_gamma_over3};
     const v4sf epsgrad = {epsilon_grad, epsilon_grad, epsilon_grad, epsilon_grad};
-
-
+    //const v4sf hbeta = {half_beta,half_beta,half_beta,half_beta};
+    //const v4sf epsdesc = {epsilon_desc,epsilon_desc,epsilon_desc,epsilon_desc};
     
     v4sf *dup = (v4sf*) du->c1, *dvp = (v4sf*) dv->c1,
         *maskp = (v4sf*) mask->c1,
@@ -338,7 +344,7 @@ void compute_data(image_t *a11, image_t *a12, image_t *a22, image_t *b1, image_t
 	#if (SELECTCHANNEL==3)
 	v4sf tmp3, tmp4, tmp5, tmp6, n3, n4, n5, n6;
 	#endif
-
+        // dpsi color
         if(half_delta_over3){
             tmp  = *iz1p + (*ix1p)*(*dup) + (*iy1p)*(*dvp);
             n1 = (*ix1p) * (*ix1p) + (*iy1p) * (*iy1p) + dnorm;
@@ -372,7 +378,7 @@ void compute_data(image_t *a11, image_t *a12, image_t *a22, image_t *b1, image_t
             #endif
         }
         
-
+        // dpsi gradient
         n1 = (*ixx1p) * (*ixx1p) + (*ixy1p) * (*ixy1p) + dnorm;
         n2 = (*iyy1p) * (*iyy1p) + (*ixy1p) * (*ixy1p) + dnorm;
         tmp  = *ixz1p + (*ixx1p) * (*dup) + (*ixy1p) * (*dvp);
@@ -411,7 +417,7 @@ void compute_data(image_t *a11, image_t *a12, image_t *a22, image_t *b1, image_t
         #endif
         
         
-        #if (SELECTCHANNEL==1 | SELECTCHANNEL==2)
+        #if (SELECTCHANNEL==1 | SELECTCHANNEL==2)  // multiply system to make smoothing parameters same for RGB and single-channel image
         *a11p *= 3;  
         *a12p *= 3;  
         *a22p *= 3;  
@@ -433,8 +439,10 @@ void compute_data(image_t *a11, image_t *a12, image_t *a22, image_t *b1, image_t
 
 
 
-
-#if (SELECTCHANNEL==1 | SELECTCHANNEL==2)
+/* compute the dataterm // REMOVED MATCHING TERM
+   a11 a12 a22 represents the 2x2 diagonal matrix, b1 and b2 the right hand side
+   other (color) images are input */
+#if (SELECTCHANNEL==1 | SELECTCHANNEL==2)  // use single band image_delete
 void compute_data_DE(image_t *a11, image_t *b1, image_t *mask, image_t *wx, image_t *du, image_t *uu, image_t *Ix, image_t *Iy, image_t *Iz, image_t *Ixx, image_t *Ixy, image_t *Iyy, image_t *Ixz, image_t *Iyz, const float half_delta_over3, const float half_beta, const float half_gamma_over3)
 #else
 void compute_data_DE(image_t *a11, image_t *b1, image_t *mask, image_t *wx, image_t *du, image_t *uu, color_image_t *Ix, color_image_t *Iy, color_image_t *Iz, color_image_t *Ixx, color_image_t *Ixy, color_image_t *Iyy, color_image_t *Ixz, color_image_t *Iyz, const float half_delta_over3, const float half_beta, const float half_gamma_over3)
@@ -445,8 +453,8 @@ void compute_data_DE(image_t *a11, image_t *b1, image_t *mask, image_t *wx, imag
     const v4sf epscolor = {epsilon_color, epsilon_color, epsilon_color, epsilon_color};
     const v4sf hgover3 = {half_gamma_over3, half_gamma_over3, half_gamma_over3, half_gamma_over3};
     const v4sf epsgrad = {epsilon_grad, epsilon_grad, epsilon_grad, epsilon_grad};
-
-
+    //const v4sf hbeta = {half_beta,half_beta,half_beta,half_beta};
+    //const v4sf epsdesc = {epsilon_desc,epsilon_desc,epsilon_desc,epsilon_desc};
     
     v4sf *dup = (v4sf*) du->c1,
         *maskp = (v4sf*) mask->c1,
@@ -469,7 +477,7 @@ void compute_data_DE(image_t *a11, image_t *b1, image_t *mask, image_t *wx, imag
 	#if (SELECTCHANNEL==3)
 	v4sf tmp3, tmp4, tmp5, tmp6, n3, n4, n5, n6;
 	#endif
-
+        // dpsi color
         if(half_delta_over3){
             tmp  = *iz1p + (*ix1p)*(*dup);
             n1 = (*ix1p) * (*ix1p) + (*iy1p) * (*iy1p) + dnorm;
@@ -493,7 +501,7 @@ void compute_data_DE(image_t *a11, image_t *b1, image_t *mask, image_t *wx, imag
             *b1p -=  tmp3 * (*iz3p) * (*ix3p);
             #endif
         }
-
+        // dpsi gradient
         n1 = (*ixx1p) * (*ixx1p) + (*ixy1p) * (*ixy1p) + dnorm;
         n2 = (*iyy1p) * (*iyy1p) + (*ixy1p) * (*ixy1p) + dnorm;
         tmp  = *ixz1p + (*ixx1p) * (*dup);
@@ -523,7 +531,7 @@ void compute_data_DE(image_t *a11, image_t *b1, image_t *mask, image_t *wx, imag
         #endif
         
         
-        #if (SELECTCHANNEL==1 | SELECTCHANNEL==2)
+        #if (SELECTCHANNEL==1 | SELECTCHANNEL==2)  // multiply system to make smoothing parameters same for RGB and single-channel image
         *a11p *= 3;  
         *b1p *=  3;  
         #endif
@@ -541,7 +549,7 @@ void compute_data_DE(image_t *a11, image_t *b1, image_t *mask, image_t *wx, imag
 
 
 
-
+/* resize the descriptors to the new size using a weighted mean */
 void descflow_resize(image_t *dst_flow_x, image_t *dst_flow_y, image_t *dst_weight, const image_t *src_flow_x, const image_t *src_flow_y, const image_t *src_weight){
     const int src_width = src_flow_x->width, src_height = src_flow_x->height, src_stride = src_flow_x->stride,
                 dst_width = dst_flow_x->width, dst_height = dst_flow_x->height, dst_stride = dst_flow_x->stride;
@@ -594,7 +602,7 @@ void descflow_resize(image_t *dst_flow_x, image_t *dst_flow_y, image_t *dst_weig
     }
 }
 
-
+/* resize the descriptors to the new size using a nearest neighbor method while keeping the descriptor with the higher weight at the end */
 void descflow_resize_nn(image_t *dst_flow_x, image_t *dst_flow_y, image_t *dst_weight, const image_t *src_flow_x, const image_t *src_flow_y, const image_t *src_weight){
     const int src_width = src_flow_x->width, src_height = src_flow_x->height, src_stride = src_flow_x->stride,
                 dst_width = dst_flow_x->width, dst_height = dst_flow_x->height, dst_stride = dst_flow_x->stride;
@@ -603,14 +611,14 @@ void descflow_resize_nn(image_t *dst_flow_x, image_t *dst_flow_y, image_t *dst_w
     int j;
     for( j=0 ; j<src_height ; j++){
         const float yy = ((float)j)*scale_y;
-        const int y = (int) 0.5f+yy;
+        const int y = (int) 0.5f+yy; // equivalent to round(yy)
         int i;
         for( i=0 ; i<src_width ; i++ ){
 	        const float weight = src_weight->c1[j*src_stride+i];
 	        if( !weight )
 	            continue;
 	        const float xx = ((float)i)*scale_x;
-	        const int x = (int) 0.5f+xx;
+	        const int x = (int) 0.5f+xx; // equivalent to round(xx)
 	        if( dst_weight->c1[y*dst_stride+x] < weight ){
 	            dst_weight->c1[y*dst_stride+x] = weight;
 	            dst_flow_x->c1[y*dst_stride+x] = src_flow_x->c1[j*src_stride+i]*scale_x;

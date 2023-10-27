@@ -9,9 +9,9 @@
 #include <xmmintrin.h>
 typedef __v4sf v4sf;
 
+/********** Create/Delete **********/
 
-
-
+/* allocate a new image of size width x height */
 image_t *image_new(const int width, const int height){
     image_t *image = (image_t*) malloc(sizeof(image_t));
     if(image == NULL){
@@ -29,20 +29,20 @@ image_t *image_new(const int width, const int height){
     return image;
 }
 
-
+/* allocate a new image and copy the content from src */
 image_t *image_cpy(const image_t *src){
     image_t *dst = image_new(src->width, src->height);
     memcpy(dst->c1, src->c1, src->stride*src->height*sizeof(float));
     return dst;
 }
 
-
+/* set all pixels values to zeros */
 void image_erase(image_t *image){
     memset(image->c1, 0, image->stride*image->height*sizeof(float));
 }
 
 
-
+/* multiply an image by a scalar */
 void image_mul_scalar(image_t *image, const float scalar){
     int i;
     v4sf* imp = (v4sf*) image->c1;
@@ -53,10 +53,10 @@ void image_mul_scalar(image_t *image, const float scalar){
     }
 }
 
-
+/* free memory of an image */
 void image_delete(image_t *image){
     if(image == NULL){
-
+        //fprintf(stderr, "Warning: Delete image --> Ignore action (image not allocated)\n");
     }else{
     free(image->c1);
     free(image);
@@ -64,7 +64,7 @@ void image_delete(image_t *image){
 }
 
 
-
+/* allocate a new color image of size width x height */
 color_image_t *color_image_new(const int width, const int height){
     color_image_t *image = (color_image_t*) malloc(sizeof(color_image_t));
     if(image == NULL){
@@ -84,27 +84,27 @@ color_image_t *color_image_new(const int width, const int height){
     return image;
 }
 
-
+/* allocate a new color image and copy the content from src */
 color_image_t *color_image_cpy(const color_image_t *src){
     color_image_t *dst = color_image_new(src->width, src->height);
     memcpy(dst->c1, src->c1, 3*src->stride*src->height*sizeof(float));
     return dst;
 }
 
-
+/* set all pixels values to zeros */
 void color_image_erase(color_image_t *image){
     memset(image->c1, 0, 3*image->stride*image->height*sizeof(float));
 }
 
-
+/* free memory of a color image */
 void color_image_delete(color_image_t *image){
     if(image){
-        free(image->c1);
+        free(image->c1); // c2 and c3 was allocated at the same moment
         free(image);
     }
 }
 
-
+/* reallocate the memory of an image to fit the new width height */
 void resize_if_needed_newsize(image_t *im, const int w, const int h){
     if(im->width != w || im->height != h){
         im->width = w;
@@ -121,9 +121,9 @@ void resize_if_needed_newsize(image_t *im, const int w, const int h){
 }
 
 
+/************ Resizing *********/
 
-
-
+/* resize an image to a new size (assumes a difference only in width) */
 static void image_resize_horiz(image_t *dst, const image_t *src){
     const float real_scale = ((float) src->width-1) / ((float) dst->width-1);
     int i;
@@ -143,7 +143,7 @@ static void image_resize_horiz(image_t *dst, const image_t *src){
     }
 }
 
-
+/* resize a color image to a new size (assumes a difference only in width) */
 static void color_image_resize_horiz(color_image_t *dst, const color_image_t *src){
     const float real_scale = ((float) src->width-1) / ((float) dst->width-1);
     int i;
@@ -171,7 +171,7 @@ static void color_image_resize_horiz(color_image_t *dst, const color_image_t *sr
     }
 }
 
-
+/* resize an image to a new size (assumes a difference only in height) */
 static void image_resize_vert(image_t *dst, const image_t *src){
     const float real_scale = ((float) src->height-1) / ((float) dst->height-1);
     int i;
@@ -191,7 +191,7 @@ static void image_resize_vert(image_t *dst, const image_t *src){
     }
 }
 
-
+/* resize a color image to a new size (assumes a difference only in height) */
 static void color_image_resize_vert(color_image_t *dst, const color_image_t *src){
     const float real_scale = ((float) src->height) / ((float) dst->height);
     int i;
@@ -219,10 +219,10 @@ static void color_image_resize_vert(color_image_t *dst, const color_image_t *src
     }
 }
 
-
+/* return a resize version of the image with bilinear interpolation */
 image_t *image_resize_bilinear(const image_t *src, const float scale){
     const int width = src->width, height = src->height;
-    const int newwidth = (int) (1.5f + (width-1) / scale);
+    const int newwidth = (int) (1.5f + (width-1) / scale); // 0.5f for rounding instead of flooring, and the remaining comes from scale = (dst-1)/(src-1)
     const int newheight = (int) (1.5f + (height-1) / scale);
     image_t *dst = image_new(newwidth,newheight);
     if(height*newwidth < width*newheight){
@@ -239,7 +239,7 @@ image_t *image_resize_bilinear(const image_t *src, const float scale){
     return dst;
 }
 
-
+/* resize an image with bilinear interpolation to fit the new weidht, height ; reallocation is done if necessary */
 void image_resize_bilinear_newsize(image_t *dst, const image_t *src, const int new_width, const int new_height){
     resize_if_needed_newsize(dst,new_width,new_height);
     if(new_width < new_height){
@@ -255,10 +255,10 @@ void image_resize_bilinear_newsize(image_t *dst, const image_t *src, const int n
     }
 }
 
-
+/* resize a color image  with bilinear interpolation */
 color_image_t *color_image_resize_bilinear(const color_image_t *src, const float scale){
     const int width = src->width, height = src->height;
-    const int newwidth = (int) (1.5f + (width-1) / scale);
+    const int newwidth = (int) (1.5f + (width-1) / scale); // 0.5f for rounding instead of flooring, and the remaining comes from scale = (dst-1)/(src-1)
     const int newheight = (int) (1.5f + (height-1) / scale);
     color_image_t *dst = color_image_new(newwidth,newheight);
     if(height*newwidth < width*newheight){
@@ -275,9 +275,14 @@ color_image_t *color_image_resize_bilinear(const color_image_t *src, const float
     return dst;
 }
 
+/************ Convolution ******/
 
-
-
+/* return half coefficient of a gaussian filter
+Details:
+- return a float* containing the coefficient from middle to border of the filter, so starting by 0,
+- it so contains half of the coefficient.
+- sigma is the standard deviation.
+- filter_order is an output where the size of the output array is stored */
 float *gaussian_filter(const float sigma, int *filter_order){
     if(sigma == 0.0f){
         fprintf(stderr, "gaussian_filter() error: sigma is zeros\n");
@@ -287,11 +292,11 @@ float *gaussian_filter(const float sigma, int *filter_order){
         fprintf(stderr, "gaussian_filter() error: filter_order is null\n");
         exit(1);
     }
-
+    // computer the filter order as 1 + 2* floor(3*sigma)
     *filter_order = floor(3*sigma); 
     if ( *filter_order == 0 )
         *filter_order = 1; 
-
+    // compute coefficients
     float *data = (float*) malloc(sizeof(float) * (2*(*filter_order)+1));
     if(data == NULL ){
         fprintf(stderr, "gaussian_filter() error: not enough memory\n");
@@ -307,7 +312,7 @@ float *gaussian_filter(const float sigma, int *filter_order){
     for(i=-(*filter_order) ; i<=*filter_order ; i++){
         data[i+(*filter_order)] /= sum;
     }
-
+    // fill the output
     float *data2 = (float*) malloc(sizeof(float)*(*filter_order+1));
     if(data2 == NULL ){
         fprintf(stderr, "gaussian_filter() error: not enough memory\n");
@@ -318,7 +323,7 @@ float *gaussian_filter(const float sigma, int *filter_order){
     return data2;
 }
 
-
+/* given half of the coef, compute the full coefficients and the accumulated coefficients */
 static void convolve_extract_coeffs(const int order, const float *half_coeffs, float *coeffs, float *coeffs_accu, const int even){
     int i;
     float accu = 0.0;
@@ -343,7 +348,7 @@ static void convolve_extract_coeffs(const int order, const float *half_coeffs, f
     }
 }
 
-
+/* create a convolution structure with a given order, half_coeffs, symmetric or anti-symmetric according to even parameter */
 convolution_t *convolution_new(const int order, const float *half_coeffs, const int even){
     convolution_t *conv = (convolution_t *) malloc(sizeof(convolution_t));
     if(conv == NULL){
@@ -371,23 +376,23 @@ convolution_t *convolution_new(const int order, const float *half_coeffs, const 
 static void convolve_vert_fast_3(image_t *dst, const image_t *src, const convolution_t *conv){
     const int iterline = (src->stride>>2)+1;
     const float *coeff = conv->coeffs;
-
+    //const float *coeff_accu = conv->coeffs_accu;
     v4sf *srcp = (v4sf*) src->c1, *dstp = (v4sf*) dst->c1;
     v4sf *srcp_p1 = (v4sf*) (src->c1+src->stride);
     int i;
-    for(i=iterline ; --i ; ){
+    for(i=iterline ; --i ; ){ // first line
         *dstp = (coeff[0]+coeff[1])*(*srcp) + coeff[2]*(*srcp_p1);
         dstp+=1; srcp+=1; srcp_p1+=1;
     }
     v4sf* srcp_m1 = (v4sf*) src->c1; 
-    for(i=src->height-1 ; --i ; ){
+    for(i=src->height-1 ; --i ; ){ // others line
         int j;
         for(j=iterline ; --j ; ){
             *dstp = coeff[0]*(*srcp_m1) + coeff[1]*(*srcp) + coeff[2]*(*srcp_p1);
             dstp+=1; srcp_m1+=1; srcp+=1; srcp_p1+=1;
         }
     }       
-    for(i=iterline ; --i ; ){
+    for(i=iterline ; --i ; ){ // last line
         *dstp = coeff[0]*(*srcp_m1) + (coeff[1]+coeff[2])*(*srcp);
         dstp+=1; srcp_m1+=1; srcp+=1; 
     }  
@@ -396,33 +401,33 @@ static void convolve_vert_fast_3(image_t *dst, const image_t *src, const convolu
 static void convolve_vert_fast_5(image_t *dst, const image_t *src, const convolution_t *conv){
     const int iterline = (src->stride>>2)+1;
     const float *coeff = conv->coeffs;
-
+    //const float *coeff_accu = conv->coeffs_accu;
     v4sf *srcp = (v4sf*) src->c1, *dstp = (v4sf*) dst->c1;
     v4sf *srcp_p1 = (v4sf*) (src->c1+src->stride);
     v4sf *srcp_p2 = (v4sf*) (src->c1+2*src->stride);
     int i;
-    for(i=iterline ; --i ; ){
+    for(i=iterline ; --i ; ){ // first line
         *dstp = (coeff[0]+coeff[1]+coeff[2])*(*srcp) + coeff[3]*(*srcp_p1) + coeff[4]*(*srcp_p2);
         dstp+=1; srcp+=1; srcp_p1+=1; srcp_p2+=1;
     }
     v4sf* srcp_m1 = (v4sf*) src->c1;
-    for(i=iterline ; --i ; ){
+    for(i=iterline ; --i ; ){ // second line
         *dstp = (coeff[0]+coeff[1])*(*srcp_m1) + coeff[2]*(*srcp) + coeff[3]*(*srcp_p1) + coeff[4]*(*srcp_p2);
         dstp+=1; srcp_m1+=1; srcp+=1; srcp_p1+=1; srcp_p2+=1;
     }   
     v4sf* srcp_m2 = (v4sf*) src->c1;
-    for(i=src->height-3 ; --i ; ){
+    for(i=src->height-3 ; --i ; ){ // others line
         int j;
         for(j=iterline ; --j ; ){
             *dstp = coeff[0]*(*srcp_m2) + coeff[1]*(*srcp_m1) + coeff[2]*(*srcp) + coeff[3]*(*srcp_p1) + coeff[4]*(*srcp_p2);
             dstp+=1; srcp_m2+=1;srcp_m1+=1; srcp+=1; srcp_p1+=1; srcp_p2+=1;
         }
     }    
-    for(i=iterline ; --i ; ){
+    for(i=iterline ; --i ; ){ // second to last line
         *dstp = coeff[0]*(*srcp_m2) + coeff[1]*(*srcp_m1) + coeff[2]*(*srcp) + (coeff[3]+coeff[4])*(*srcp_p1);
         dstp+=1; srcp_m2+=1;srcp_m1+=1; srcp+=1; srcp_p1+=1;
     }          
-    for(i=iterline ; --i ; ){
+    for(i=iterline ; --i ; ){ // last line
         *dstp = coeff[0]*(*srcp_m2) + coeff[1]*(*srcp_m1) + (coeff[2]+coeff[3]+coeff[4])*(*srcp);
         dstp+=1; srcp_m2+=1;srcp_m1+=1; srcp+=1; 
     }  
@@ -433,7 +438,7 @@ static void convolve_horiz_fast_3(image_t *dst, const image_t *src, const convol
     const int iterline = (src->stride>>2);
     const float *coeff = conv->coeffs;
     v4sf *srcp = (v4sf*) src->c1, *dstp = (v4sf*) dst->c1;
-
+    // create shifted version of src
     float *src_p1 = (float*) malloc(sizeof(float)*src->stride),
         *src_m1 = (float*) malloc(sizeof(float)*src->stride);
     int j;
@@ -496,7 +501,7 @@ static void convolve_horiz_fast_5(image_t *dst, const image_t *src, const convol
     free(src_p1);
 }
 
-
+/* perform an horizontal convolution of an image */
 void convolve_horiz(image_t *dest, const image_t *src, const convolution_t *conv){
     if(conv->order==1){
         convolve_horiz_fast_3(dest,src,conv);
@@ -546,7 +551,7 @@ void convolve_horiz(image_t *dest, const image_t *src, const convolution_t *conv
     }
 }
 
-
+/* perform a vertical convolution of an image */
 void convolve_vert(image_t *dest, const image_t *src, const convolution_t *conv){
     if(conv->order==1){
         convolve_vert_fast_3(dest,src,conv);
@@ -612,7 +617,7 @@ void convolve_vert(image_t *dest, const image_t *src, const convolution_t *conv)
     }
 }
 
-
+/* free memory of a convolution structure */
 void convolution_delete(convolution_t *conv){
     if(conv)
     {
@@ -622,13 +627,13 @@ void convolution_delete(convolution_t *conv){
     }
 }
 
-
+/* perform horizontal and/or vertical convolution to a color image */
 void color_image_convolve_hv(color_image_t *dst, const color_image_t *src, const convolution_t *horiz_conv, const convolution_t *vert_conv){
     const int width = src->width, height = src->height, stride = src->stride;
-
+    // separate channels of images
     image_t src_red = {width,height,stride,src->c1}, src_green = {width,height,stride,src->c2}, src_blue = {width,height,stride,src->c3}, 
             dst_red = {width,height,stride,dst->c1}, dst_green = {width,height,stride,dst->c2}, dst_blue = {width,height,stride,dst->c3};
-
+    // horizontal and vertical
     if(horiz_conv != NULL && vert_conv != NULL){
         float *tmp_data = malloc(sizeof(float)*stride*height);
         if(tmp_data == NULL){
@@ -636,7 +641,7 @@ void color_image_convolve_hv(color_image_t *dst, const color_image_t *src, const
 	        exit(1);
         }  
         image_t tmp = {width,height,stride,tmp_data};   
-
+        // perform convolution for each channel
         convolve_horiz(&tmp,&src_red,horiz_conv); 
         convolve_vert(&dst_red,&tmp,vert_conv); 
         convolve_horiz(&tmp,&src_green,horiz_conv);
@@ -644,25 +649,25 @@ void color_image_convolve_hv(color_image_t *dst, const color_image_t *src, const
         convolve_horiz(&tmp,&src_blue,horiz_conv); 
         convolve_vert(&dst_blue,&tmp,vert_conv);
         free(tmp_data);
-    }else if(horiz_conv != NULL && vert_conv == NULL){
+    }else if(horiz_conv != NULL && vert_conv == NULL){ // only horizontal
         convolve_horiz(&dst_red,&src_red,horiz_conv);
         convolve_horiz(&dst_green,&src_green,horiz_conv);
         convolve_horiz(&dst_blue,&src_blue,horiz_conv);
-    }else if(vert_conv != NULL && horiz_conv == NULL){
+    }else if(vert_conv != NULL && horiz_conv == NULL){ // only vertical
         convolve_vert(&dst_red,&src_red,vert_conv);
         convolve_vert(&dst_green,&src_green,vert_conv);
         convolve_vert(&dst_blue,&src_blue,vert_conv);
     }
 }
 
-
+/* perform horizontal and/or vertical convolution to a single band image*/
 void image_convolve_hv(image_t *dst, const image_t *src, const convolution_t *horiz_conv, const convolution_t *vert_conv)
 {
     const int width = src->width, height = src->height, stride = src->stride;
-
+    // separate channels of images
     image_t src_red = {width,height,stride,src->c1}, 
             dst_red = {width,height,stride,dst->c1};
-
+    // horizontal and vertical
     if(horiz_conv != NULL && vert_conv != NULL){
         float *tmp_data = malloc(sizeof(float)*stride*height);
         if(tmp_data == NULL){
@@ -670,20 +675,20 @@ void image_convolve_hv(image_t *dst, const image_t *src, const convolution_t *ho
           exit(1);
         }  
         image_t tmp = {width,height,stride,tmp_data};   
-
+        // perform convolution for each channel
         convolve_horiz(&tmp,&src_red,horiz_conv); 
         convolve_vert(&dst_red,&tmp,vert_conv); 
         free(tmp_data);
-    }else if(horiz_conv != NULL && vert_conv == NULL){
+    }else if(horiz_conv != NULL && vert_conv == NULL){ // only horizontal
         convolve_horiz(&dst_red,&src_red,horiz_conv);
-    }else if(vert_conv != NULL && horiz_conv == NULL){
+    }else if(vert_conv != NULL && horiz_conv == NULL){ // only vertical
         convolve_vert(&dst_red,&src_red,vert_conv);
     }
 }
 
+/************ Pyramid **********/
 
-
-
+/* create new color image pyramid structures */
 static color_image_pyramid_t* color_image_pyramid_new(){
     color_image_pyramid_t* pyr = (color_image_pyramid_t*) malloc(sizeof(color_image_pyramid_t));
     if(pyr == NULL){
@@ -697,7 +702,7 @@ static color_image_pyramid_t* color_image_pyramid_new(){
     return pyr;
 }
 
-
+/* set the size of the color image pyramid structures (reallocate the array of pointers to images) */
 static void color_image_pyramid_set_size(color_image_pyramid_t* pyr, const int size){
     if(size<0){
         fprintf(stderr,"Error in color_image_pyramid_set_size(): size is negative\n");
@@ -715,10 +720,10 @@ static void color_image_pyramid_set_size(color_image_pyramid_t* pyr, const int s
     pyr->size = size;
 }
 
-
+/* create a pyramid of color images using a given scale factor, stopping when one dimension reach min_size and with applying a gaussian smoothing of standard deviation spyr (no smoothing if 0) */
 color_image_pyramid_t *color_image_pyramid_create(const color_image_t *src, const float scale_factor, const int min_size, const float spyr){
     const int nb_max_scale = 1000;
-
+    // allocate structure
     color_image_pyramid_t *pyramid = color_image_pyramid_new();
     pyramid->min_size = min_size;
     pyramid->scale_factor = scale_factor;
@@ -755,7 +760,7 @@ color_image_pyramid_t *color_image_pyramid_create(const color_image_t *src, cons
     return pyramid;
 }
 
-
+/* delete the structure of a pyramid of color images and all the color images in it*/
 void color_image_pyramid_delete(color_image_pyramid_t *pyr){
     if(pyr==NULL){
         return;

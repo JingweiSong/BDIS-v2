@@ -32,7 +32,7 @@ frameindex = parameter_Settings.start_frame;
 while ( frameindex <= parameter_Settings.end_frame  )
 %     close all;
 
-    result_Bayesian = importdata([parameter_Settings.dataset_path num2str(Dataindex) '/images_rectified/bayesian_output' int2str(frameindex)]);
+    result_Bayesian = double(imread([parameter_Settings.dataset_path num2str(Dataindex) '/images_rectified/bayesian_output' int2str(frameindex) '.png']))/10;
     
 
     Data.RGB_image = imread([parameter_Settings.dataset_path num2str(Dataindex) '/images_rectified/left/' int2str(frameindex) '.png']);
@@ -60,7 +60,7 @@ while ( frameindex <= parameter_Settings.end_frame  )
         result_prob = importdata([parameter_Settings.dataset_path num2str(Dataindex) '/images_rectified/prob_out_output' int2str(frameindex)]);
         depthGT = load_GT_depth(frameindex,[parameter_Settings.dataset_path num2str(Dataindex) '/']);
         error = abs(depthGT-depth_Bayesian);
-        bool_ind = (result_prob~=0 ) & error<10);
+        bool_ind = (result_prob~=0 ) & (error<10);
         num_valid_all = sum(sum(bool_ind));
         error = error(bool_ind);
         result_prob = result_prob(bool_ind);
