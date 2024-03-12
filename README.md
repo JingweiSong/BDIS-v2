@@ -6,7 +6,7 @@ This is the CPU level real-time stereo software for minimally invasive surgery.
 ![sample1](imgs/sample2.JPG)  
 ![sample1](imgs/sample3.JPG)  
 
-More demo can be found [here](https://youtu.be/MTurBOUDdB0?si=nhdpG06Ibo-C_hqe).
+More demo can be found at [youtube pages](https://youtu.be/MTurBOUDdB0?si=nhdpG06Ibo-C_hqe).
 
 
 ## Compiling ##
