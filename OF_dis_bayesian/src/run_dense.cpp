@@ -126,19 +126,19 @@ int main(int argc, char** argv)
 
 	/*probabilityout = probabilityout(
 			cv::Rect((int)floor((float)padw / 2.0f), (int)floor((float)padh / 2.0f), width_org, height_org));*/
+	SavePFMFile(flowout, outfile.c_str());
+	/*SavePFMFile_jingwei(flowout, probabilityout, param.min_prob, outfile.c_str());
+	SavePFMFile_jingwei(probabilityout, probabilityout, param.min_prob, outfile_prob.c_str());*/
+	if (param.verbosity > 1)
+	{
+		gettimeofday(&tv_end_all, NULL);
+		double tt = (tv_end_all.tv_sec - tv_start_all.tv_sec) * 1000.0f +
+				(tv_end_all.tv_usec - tv_start_all.tv_usec) / 1000.0f;
+		printf("TIME (Saving flow file  ) (ms): %3g\n", tt);
+	}
 	if (param.bool_var)
 	{
-		SavePFMFile(flowout, outfile.c_str());
 		SavePFMFile_prob(probabilityout, outfile_prob.c_str());
-		/*SavePFMFile_jingwei(flowout, probabilityout, param.min_prob, outfile.c_str());
-		SavePFMFile_jingwei(probabilityout, probabilityout, param.min_prob, outfile_prob.c_str());*/
-		if (param.verbosity > 1)
-		{
-			gettimeofday(&tv_end_all, NULL);
-			double tt = (tv_end_all.tv_sec - tv_start_all.tv_sec) * 1000.0f +
-						(tv_end_all.tv_usec - tv_start_all.tv_usec) / 1000.0f;
-			printf("TIME (Saving flow file  ) (ms): %3g\n", tt);
-		}
 	}
 
 	return 0;
